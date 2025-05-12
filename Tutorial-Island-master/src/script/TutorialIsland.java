@@ -8,9 +8,9 @@ import org.osbot.rs07.script.ScriptManifest;
 import sections.*;
 import util.Sleep;
 
-@ScriptManifest(author = "Explv", name = "Explv's Tutorial Island " + TutorialIsland.VERSION, info = "Completes Tutorial Island", version=0, logo = "")
+@ScriptManifest(author = "Explv", name = "Explv's Tutorial Island + Combat Training", info = "Completes Tutorial Island and trains combat", version=0, logo = "")
 public final class TutorialIsland extends Script {
-    public static final String VERSION = "v6.2";
+    public static final String VERSION = "v6.3";
 
     private final TutorialSection rsGuideSection = new RuneScapeGuideSection();
     private final TutorialSection survivalSection = new SurvivalSection();
@@ -21,6 +21,9 @@ public final class TutorialIsland extends Script {
     private final TutorialSection bankSection = new BankSection();
     private final TutorialSection priestSection = new PriestSection();
     private final TutorialSection wizardSection = new WizardSection();
+    private final TutorialSection chickenTrainingSection = new ChickenTrainingSection();
+
+    private boolean hasStartedChickenTraining = false;
 
     @Override
     public void onStart() {
@@ -33,6 +36,7 @@ public final class TutorialIsland extends Script {
         bankSection.exchangeContext(getBot());
         priestSection.exchangeContext(getBot());
         wizardSection.exchangeContext(getBot());
+        chickenTrainingSection.exchangeContext(getBot());
 
         Sleep.sleepUntil(() -> getClient().isLoggedIn() && myPlayer().isVisible(), 6000, 500);
     }
@@ -40,6 +44,13 @@ public final class TutorialIsland extends Script {
     @Override
     public final int onLoop() throws InterruptedException {
         if (isTutorialIslandCompleted()) {
+            // Si ya iniciamos el entrenamiento con chickens, continuar con eso
+            if (hasStartedChickenTraining) {
+                chickenTrainingSection.onLoop();
+                return 200;
+            }
+
+            // TODA LA LÓGICA ORIGINAL DE BANKING SE MANTIENE EXACTAMENTE IGUAL
             // Verificar el piso actual
             int currentFloor = myPlayer().getPosition().getZ();
 
@@ -100,19 +111,40 @@ public final class TutorialIsland extends Script {
                 return 200;
             }
 
-            // Cerrar banco y detener script
+            // AQUÍ ES DONDE MODIFICAMOS: en lugar de cerrar y detener, retirar items
             if (getBank().isOpen() && getEquipment().isEmpty() && getInventory().isEmpty()) {
-                if (getBank().close()) {
-                    Sleep.sleepUntil(() -> !getBank().isOpen(), 3000, 500);
-                    log("Tutorial completed and items banked. Stopping script...");
-                    stop(true);
-                    return 0;
+                // Retirar wooden shield
+                if (!getInventory().contains("Wooden shield")) {
+                    log("Withdrawing Wooden shield...");
+                    if (getBank().withdraw("Wooden shield", 1)) {
+                        Sleep.sleepUntil(() -> getInventory().contains("Wooden shield"), 2000);
+                    }
+                    return 200;
+                }
+
+                // Retirar bronze sword
+                if (!getInventory().contains("Bronze sword")) {
+                    log("Withdrawing Bronze sword...");
+                    if (getBank().withdraw("Bronze sword", 1)) {
+                        Sleep.sleepUntil(() -> getInventory().contains("Bronze sword"), 2000);
+                    }
+                    return 200;
+                }
+
+                // Una vez tenemos ambos items, cerrar banco e iniciar chicken training
+                if (getInventory().contains("Wooden shield") && getInventory().contains("Bronze sword")) {
+                    if (getBank().close()) {
+                        Sleep.sleepUntil(() -> !getBank().isOpen(), 3000, 500);
+                        log("Banking complete. Starting chicken training...");
+                        hasStartedChickenTraining = true;
+                    }
                 }
             }
 
             return 200;
         }
 
+        // TODO EL CÓDIGO ORIGINAL DE TUTORIAL ISLAND SE MANTIENE EXACTAMENTE IGUAL
         switch (getTutorialSection()) {
             case 0:
             case 1:
